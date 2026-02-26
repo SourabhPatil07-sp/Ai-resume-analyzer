@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Resume Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --surface: #12121a; --border: #1e1e2e;
+    --accent: #7c3aed; --accent2: #06b6d4; --gold: #f59e0b;
+    --text: #e2e8f0; --muted: #64748b; --success: #10b981; --danger: #ef4444;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(124,58,237,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(124,58,237,0.05) 1px, transparent 1px);
+    background-size: 40px 40px; pointer-events: none; z-index: 0;
+  }
+  .orb { position: fixed; border-radius: 50%; filter: blur(80px); pointer-events: none; z-index: 0; }
+  .orb-1 { width: 400px; height: 400px; background: rgba(124,58,237,0.15); top: -100px; left: -100px; }
+  .orb-2 { width: 300px; height: 300px; background: rgba(6,182,212,0.1); bottom: 100px; right: -50px; }
+  .container { max-width: 900px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+  header { padding: 32px 0 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+  .logo { display: flex; align-items: center; gap: 12px; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; }
+  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .badge { font-family: 'DM Mono', monospace; font-size: 0.7rem; padding: 3px 10px; border: 1px solid var(--accent); border-radius: 20px; color: var(--accent); letter-spacing: 0.05em; }
+  .hero { text-align: center; margin-bottom: 40px; }
+  .hero h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.03em; margin-bottom: 14px; }
+  .hero h1 span { background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .hero p { color: var(--muted); font-size: 1rem; max-width: 480px; margin: 0 auto; line-height: 1.6; }
+
+  .config-bar { background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.25); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+  .config-bar label { color: var(--accent2); font-weight: 700; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+  .config-bar input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.8rem; outline: none; }
+  .config-bar input:focus { border-color: var(--accent2); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; transition: background 0.3s; }
+  .status-dot.online { background: var(--success); box-shadow: 0 0 8px var(--success); }
+  .status-dot.offline { background: var(--danger); }
+
+  .upload-zone { border: 2px dashed var(--border); border-radius: 16px; padding: 44px 24px; text-align: center; cursor: pointer; transition: all 0.2s ease; background: var(--surface); position: relative; overflow: hidden; margin-bottom: 20px; }
+  .upload-zone::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(124,58,237,0.05), rgba(6,182,212,0.05)); opacity: 0; transition: opacity 0.2s; }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); transform: translateY(-2px); }
+  .upload-zone:hover::before, .upload-zone.drag-over::before { opacity: 1; }
+  .upload-icon { width: 60px; height: 60px; background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(6,182,212,0.2)); border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 26px; transition: transform 0.2s; }
+  .upload-zone:hover .upload-icon { transform: scale(1.08); }
+  .upload-title { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+  .upload-sub { color: var(--muted); font-size: 0.8rem; font-family: 'DM Mono', monospace; }
+  #fileInput { display: none; }
+  .file-chip { display: none; align-items: center; gap: 8px; background: rgba(124,58,237,0.15); border: 1px solid var(--accent); border-radius: 8px; padding: 7px 14px; font-family: 'DM Mono', monospace; font-size: 0.8rem; color: var(--accent); margin-bottom: 16px; }
+
+  .field-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; display: block; }
+  textarea { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.85rem; resize: vertical; min-height: 110px; transition: border-color 0.2s; outline: none; line-height: 1.6; }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  .btn-analyze { width: 100%; margin-top: 18px; padding: 15px; background: linear-gradient(135deg, var(--accent), #5b21b6); border: none; border-radius: 12px; color: white; font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700; cursor: pointer; letter-spacing: 0.02em; transition: all 0.2s; }
+  .btn-analyze:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(124,58,237,0.4); }
+  .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .loading-box { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 36px; text-align: center; margin-top: 28px; }
+  .spinner { width: 44px; height: 44px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 18px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .step { font-family: 'DM Mono', monospace; font-size: 0.8rem; color: var(--muted); padding: 4px 0; transition: color 0.3s; }
+  .step.active { color: var(--accent2); }
+  .step.done { color: var(--success); }
+
+  .results { display: none; margin-top: 36px; animation: fadeUp 0.5s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+  .results-title { font-size: 1.4rem; font-weight: 800; }
+
+  .score-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; display: flex; align-items: center; gap: 28px; margin-bottom: 20px; }
+  .score-ring { position: relative; width: 96px; height: 96px; flex-shrink: 0; }
+  .score-ring svg { transform: rotate(-90deg); }
+  .score-ring circle { fill: none; stroke-width: 8; stroke-linecap: round; }
+  .score-ring .track { stroke: var(--border); }
+  .score-ring .fill { stroke: var(--accent); stroke-dasharray: 283; transition: stroke-dashoffset 1s ease; }
+  .score-num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 800; font-size: 1.4rem; line-height: 1; }
+  .score-num small { font-size: 0.6rem; font-weight: 400; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .score-info h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
+  .score-info p { color: var(--muted); font-size: 0.875rem; line-height: 1.6; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } .score-card { flex-direction: column; text-align: center; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
+  .card-title { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .dot-green { background: var(--success); } .dot-red { background: var(--danger); } .dot-gold { background: var(--gold); } .dot-blue { background: var(--accent2); }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 7px; }
+  .tag { font-family: 'DM Mono', monospace; font-size: 0.72rem; padding: 3px 10px; border-radius: 6px; border: 1px solid; }
+  .tag-green { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: var(--success); }
+  .tag-red { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: var(--danger); }
+  .suggestion-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.875rem; line-height: 1.5; }
+  .suggestion-item:last-child { border-bottom: none; }
+  .suggestion-num { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--accent); width: 20px; flex-shrink: 0; margin-top: 2px; }
+  .summary-text { font-size: 0.9rem; line-height: 1.7; }
+
+  .chat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-top: 14px; }
+  .chat-messages { min-height: 120px; max-height: 280px; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { padding: 10px 14px; border-radius: 10px; font-size: 0.875rem; line-height: 1.5; max-width: 85%; }
+  .msg-user { background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.2); align-self: flex-end; }
+  .msg-ai { background: var(--bg); border: 1px solid var(--border); align-self: flex-start; }
+  .msg-ai .ai-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--accent2); margin-bottom: 4px; }
+  .chat-input-row { display: flex; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--border); }
+  .chat-input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; color: var(--text); font-family: 'Syne', sans-serif; font-size: 0.875rem; outline: none; }
+  .chat-input:focus { border-color: var(--accent); }
+  .btn-ask { background: var(--accent); border: none; border-radius: 8px; color: white; padding: 9px 18px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: opacity 0.2s; }
+  .btn-ask:hover { opacity: 0.85; }
+
+  .error-box { display: none; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); border-radius: 12px; padding: 16px 20px; margin-top: 16px; font-family: 'DM Mono', monospace; font-size: 0.82rem; color: var(--danger); white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<div class="container">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🧠</div>
+      ResumeAI
+    </div>
+    <span class="badge">RAG + FAISS + GPT-4</span>
+  </header>
+
+  <div class="hero">
+    <h1>Analyze Your Resume<br>with <span>AI Intelligence</span></h1>
+    <p>Upload your PDF resume and get instant ATS score, skill gap analysis, and AI-powered improvement suggestions.</p>
+  </div>
+
+  <!-- Backend URL -->
+  <div class="config-bar">
+    <label>🔌 Backend URL</label>
+    <input type="text" id="backendUrl" value="http://localhost:8000" placeholder="http://localhost:8000" />
+    <div class="status-dot" id="statusDot" title="Backend connection status"></div>
+    <button onclick="checkBackend()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem;white-space:nowrap;font-family:'DM Mono',monospace;">Ping</button>
+  </div>
+
+  <!-- Upload -->
+  <div class="upload-zone" id="uploadZone">
+    <div class="upload-icon">📄</div>
+    <div class="upload-title">Drop your PDF resume here</div>
+    <div class="upload-sub">PDF only · Max 10MB</div>
+    <input type="file" id="fileInput" accept=".pdf" />
+  </div>
+
+  <div class="file-chip" id="fileChip">📎 <span id="fileName"></span></div>
+
+  <label class="field-label" for="jobDesc">Job Description (Recommended for ATS scoring)</label>
+  <textarea id="jobDesc" placeholder="Paste the job description here to get a tailored match score and skill gap analysis..."></textarea>
+
+  <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">✦ Analyze Resume</button>
+
+  <div class="loading-box" id="loadingBox">
+    <div class="spinner"></div>
+    <div style="font-weight:700;margin-bottom:10px;">Analyzing with AI...</div>
+    <div>
+      <div class="step" id="s1">→ Sending resume to FastAPI backend</div>
+      <div class="step" id="s2">→ Extracting text with PyPDF</div>
+      <div class="step" id="s3">→ Generating FAISS embeddings via OpenAI</div>
+      <div class="step" id="s4">→ Running GPT-4o-mini analysis</div>
+    </div>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="results-header">
+      <div class="results-title">Analysis Complete ✓</div>
+      <button onclick="reset()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:6px 14px;border-radius:8px;cursor:pointer;font-family:'Syne',sans-serif;font-size:0.8rem;">New Analysis</button>
+    </div>
+
+    <div class="score-card">
+      <div class="score-ring">
+        <svg width="96" height="96" viewBox="0 0 100 100">
+          <circle class="track" cx="50" cy="50" r="45"/>
+          <circle class="fill" id="scoreFill" cx="50" cy="50" r="45" stroke-dashoffset="283"/>
+        </svg>
+        <div class="score-num"><span id="scoreNum">0</span><small>/ 100</small></div>
+      </div>
+      <div class="score-info">
+        <h3 id="scoreLabel">Overall Match Score</h3>
+        <p id="scoreSummary"></p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-title"><span class="dot dot-blue"></span>AI Summary</div>
+      <div class="summary-text" id="summaryText"></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><span class="dot dot-green"></span>Matched Skills</div>
+        <div class="tag-list" id="matchedSkills"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="dot dot-red"></span>Missing Skills</div>
+        <div class="tag-list" id="missingSkills"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-title"><span class="dot dot-gold"></span>Improvement Suggestions</div>
+      <div id="suggestions"></div>
+    </div>
+
+    <!-- Q&A Chat -->
+    <div>
+      <div class="card-title" style="margin-bottom:8px"><span class="dot dot-blue"></span>Ask Questions About Your Resume</div>
+      <div class="chat-box">
+        <div class="chat-messages" id="chatMessages">
+          <div class="msg msg-ai">
+            <div class="ai-label">RESUMEAI</div>
+            Resume analyzed ✓ Ask me anything — "What are my strongest skills?", "Am I fit for a DevOps role?", "How do I improve my experience section?"
+          </div>
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="chatInput" type="text" placeholder="Ask something about your resume..." onkeydown="if(event.key==='Enter') sendQuestion()" />
+          <button class="btn-ask" onclick="sendQuestion()">Ask →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let selectedFile = null;
+
+  const zone = document.getElementById('uploadZone');
+  zone.addEventListener('click', () => document.getElementById('fileInput').click());
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+  document.getElementById('fileInput').addEventListener('change', e => handleFile(e.target.files[0]));
+
+  function handleFile(file) {
+    if (!file) return;
+    selectedFile = file;
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileChip').style.display = 'inline-flex';
+    zone.style.borderColor = 'var(--success)';
+  }
+
+  function getBackendUrl() { return document.getElementById('backendUrl').value.replace(/\/$/, ''); }
+
+  async function checkBackend() {
+    const dot = document.getElementById('statusDot');
+    dot.className = 'status-dot';
+    try {
+      const res = await fetch(`${getBackendUrl()}/`);
+      dot.className = res.ok ? 'status-dot online' : 'status-dot offline';
+    } catch { dot.className = 'status-dot offline'; }
+  }
+
+  async function analyze() {
+    if (!selectedFile) return showError('Please upload a PDF resume file.');
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = true;
+    document.getElementById('loadingBox').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('errorBox').style.display = 'none';
+
+    const steps = ['s1','s2','s3','s4'];
+    let si = 0;
+    const stepInterval = setInterval(() => {
+      if (si > 0) document.getElementById(steps[si-1]).className = 'step done';
+      if (si < steps.length) { document.getElementById(steps[si]).className = 'step active'; si++; }
+      else clearInterval(stepInterval);
+    }, 900);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      const jobDesc = document.getElementById('jobDesc').value.trim();
+      if (jobDesc) formData.append('job_description', jobDesc);
+
+      const res = await fetch(`${getBackendUrl()}/analyze`, { method: 'POST', body: formData });
+      if (!res.ok) { const err = await res.text(); throw new Error(`Server error ${res.status}: ${err}`); }
+
+      clearInterval(stepInterval);
+      steps.forEach(s => document.getElementById(s).className = 'step done');
+
+      const result = await res.json();
+      setTimeout(() => showResults(result), 300);
+    } catch(err) {
+      clearInterval(stepInterval);
+      showError(err.message + '\n\n💡 Make sure your FastAPI backend is running:\n   cd your-project && uvicorn main:app --reload\n\nThen enter the URL above (default: http://localhost:8000)');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('loadingBox').style.display = 'none';
+    }
+  }
+
+  function showResults(r) {
+    const score = Math.min(100, Math.max(0, r.score || 0));
+    const fill = document.getElementById('scoreFill');
+    fill.style.strokeDashoffset = 283 - (283 * score / 100);
+    fill.style.stroke = score >= 75 ? 'var(--success)' : score >= 50 ? 'var(--gold)' : 'var(--danger)';
+
+    let cur = 0;
+    const numEl = document.getElementById('scoreNum');
+    const anim = setInterval(() => { cur = Math.min(cur + 2, score); numEl.textContent = cur; if (cur >= score) clearInterval(anim); }, 20);
+
+    document.getElementById('scoreLabel').textContent = r.scoreLabel || 'Overall Match';
+    document.getElementById('summaryText').textContent = r.summary || '';
+    document.getElementById('matchedSkills').innerHTML = (r.matchedSkills || []).map(s => `<span class="tag tag-green">${s}</span>`).join('');
+    document.getElementById('missingSkills').innerHTML = (r.missingSkills || []).map(s => `<span class="tag tag-red">${s}</span>`).join('');
+    document.getElementById('suggestions').innerHTML = (r.suggestions || []).map((s,i) => `<div class="suggestion-item"><span class="suggestion-num">0${i+1}</span><span>${s}</span></div>`).join('');
+    document.getElementById('results').style.display = 'block';
+  }
+
+  async function sendQuestion() {
+    const input = document.getElementById('chatInput');
+    const q = input.value.trim();
+    if (!q) return;
+    input.value = '';
+    const msgs = document.getElementById('chatMessages');
+    msgs.innerHTML += `<div class="msg msg-user">${q}</div>`;
+    const thinkId = 'think_' + Date.now();
+    msgs.innerHTML += `<div class="msg msg-ai" id="${thinkId}"><div class="ai-label">RESUMEAI</div>Thinking...</div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+    try {
+      const res = await fetch(`${getBackendUrl()}/ask?question=${encodeURIComponent(q)}`, { method: 'POST' });
+      const data = await res.json();
+      document.getElementById(thinkId).innerHTML = `<div class="ai-label">RESUMEAI</div>${data.answer}`;
+    } catch {
+      document.getElementById(thinkId).innerHTML = `<div class="ai-label">RESUMEAI</div>⚠ Could not reach backend.`;
+    }
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function showError(msg) { const b = document.getElementById('errorBox'); b.textContent = '⚠ ' + msg; b.style.display = 'block'; document.getElementById('loadingBox').style.display = 'none'; }
+
+  function reset() {
+    selectedFile = null;
+    document.getElementById('fileChip').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('errorBox').style.display = 'none';
+    document.getElementById('jobDesc').value = '';
+    document.getElementById('fileInput').value = '';
+    zone.style.borderColor = 'var(--border)';
+    document.getElementById('analyzeBtn').disabled = false;
+  }
+
+  checkBackend();
+</script>
+</body>
+</html>
